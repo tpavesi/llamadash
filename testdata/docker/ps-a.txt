@@ -1,0 +1,17 @@
+f00df00d0123456789abcdef0123456789abcdef0123456789abcdeff00df00d	llama-server-main	running	Up 2 hours (unhealthy)	192.0.2.10:8011->8081/tcp, 127.0.0.1:8011->8081/tcp
+a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1	web-1	running	Up 21 minutes (healthy)	0.0.0.0:8787->8787/tcp, 127.0.0.1:8788->8788/tcp
+b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2	db-1	running	Up 3 days	5432/tcp
+c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3	search-1	running	Up 5 seconds (health: starting)	127.0.0.1:9200->9200/tcp
+d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4	worker-1	restarting	Restarting (1) 12 seconds ago
+e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5	batch-1	exited	Exited (0) 2 hours ago
+zz-not-hex	broken-1	running	Up 1 hour
+a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6	importer-1	exited	Exited (1) 30 minutes ago
+b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7	tts-1	exited	Exited (128) 30 minutes ago
+3f3f3f	short-line
+c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8	cache-1	exited	Exited (137) 1 day ago
+d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9	proxy-1	exited	Exited (143) 4 hours ago
+eaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea	fresh-1	created	Created
+fbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfb	pausy-1	paused	Up 1 hour (Paused)	0.0.0.0:4000->4000/tcp
+0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c	zombie-1	dead	Dead
+1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d	going-1	removing	Removal In Progress
+2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e	odd[31m-näme.v2_x	running	Up 7 minutes (healthy)

@@ -1,0 +1,4 @@
+contrib/* text eol=lf
+docs/screenshots/*.png binary
+install.sh text eol=lf
+testdata/hwmon/** text eol=lf

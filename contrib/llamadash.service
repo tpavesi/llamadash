@@ -1,0 +1,43 @@
+# llamadash on the server's own console (tty1), started at boot.
+#
+# Install (as root, from the directory that holds the built files):
+#   install -m 755 llamadash-linux-amd64 /usr/local/bin/llamadash
+#   install -m 644 contrib/llamadash.service /etc/systemd/system/llamadash.service
+#   install -m 644 contrib/llamadash.conf /etc/llamadash.conf
+#   systemctl daemon-reload
+#   systemctl enable --now llamadash
+#
+# Remove:
+#   systemctl disable --now llamadash
+#   rm /etc/systemd/system/llamadash.service /etc/llamadash.conf /usr/local/bin/llamadash
+#   systemctl daemon-reload
+#   systemctl start getty@tty1
+# The history database in /var/lib/llamadash is kept; delete it with
+#   rm -r /var/lib/llamadash
+
+[Unit]
+Description=llamadash on tty1
+After=network-online.target docker.service systemd-user-sessions.service getty@tty1.service
+Wants=network-online.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+Environment=TERM=linux
+ExecStart=/usr/local/bin/llamadash
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+# a bad setting in /etc/llamadash.conf exits with status 2: stay failed, do not loop
+RestartPreventExitStatus=2
+StandardError=journal
+RestartSec=2
+User=root
+StateDirectory=llamadash
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target
