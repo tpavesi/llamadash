@@ -669,6 +669,10 @@ environment. It makes no other network connections.
 
 ## Development
 
+How the program is put together is described in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); the rules for changing it,
+for people and for AI coding agents, are in [AGENTS.md](AGENTS.md).
+
 ```
 go test ./...          # all tests; no llama-server or GPU needed
 python build.py        # tests, then both Linux binaries into dist/
