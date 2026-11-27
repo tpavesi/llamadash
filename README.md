@@ -125,7 +125,10 @@ A plain 80x24 terminal keeps the essentials:
   exited with an error code, shown in brackets), dim stopped on purpose. The
   title counts them; without colour the marks are `+`, `~`, `!` and `-`.
 - **Energy**: live power in watts (GPU and CPU package) and, with the power
-  supply's wattage set, its share of that (`578 W  of 1000 W psu (58%)`), energy since start,
+  supply's wattage set, its share of that (`578 W  of 1000 W psu (58%)`). With the
+  wattage set the figure is green below 80% of it, amber from 80% and red from
+  95%; without it the figure is plain. Each GPU's own power figure is always
+  green, because a card at its limit is normal use. Also: energy since start,
   joules per token and tokens per Wh. With a price per kWh: cost since start,
   per day and per million generated tokens. With the database: energy, cost,
   generated tokens and requests for today, this month and all time.

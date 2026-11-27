@@ -348,7 +348,8 @@ func (r *renderer) gpuLines(g gpu.GPU, iw int) []string {
 	}
 	power := na
 	if g.HasPower {
-		power = r.paint(rPower, fmt.Sprintf("%.0f W", g.PowerW))
+		// a card at its limit is normal use: its own figure is never a warning
+		power = r.paint(rGood, fmt.Sprintf("%.0f W", g.PowerW))
 	}
 	l := fit(r.paint(rLabel, "temp"), labelW) + fit(temp, valW) + "  " + r.paint(rLabel, "power ") + power
 	if g.HasFan {
@@ -371,7 +372,8 @@ func (r *renderer) energyLines(iw, detail int) []string {
 	s := r.s
 	const labelW = 11
 	label := func(l string) string { return fit(r.paint(rLabel, l), labelW) }
-	draw := label("draw") + r.paint(rPower, fmt.Sprintf("%.0f W", s.PowerW))
+	pr := powerRole(s.PowerW, s.PSUWatts)
+	draw := label("draw") + r.paint(pr, fmt.Sprintf("%.0f W", s.PowerW)+r.warnMark(pr))
 	if s.PSUWatts > 0 { // the share of what the power supply can give (GPU + CPU package only)
 		draw += r.paint(rLabel, fmt.Sprintf("  of %s W psu (%.0f%%)", axisNum(s.PSUWatts), s.PowerW/s.PSUWatts*100))
 	}
