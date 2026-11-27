@@ -290,6 +290,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pollMsg:
 		m.latest, m.polling = msg.snap, false
 		m.raiseScales(msg.snap, nil)
+		if m.opts.OnStatus != nil { // the lights follow live data, also while the picture is paused
+			o := m.opts
+			o.Now, o.Interval = m.now(), m.interval
+			m.opts.LEDNote = m.opts.OnStatus(Status(msg.snap, o))
+		}
 		if !m.paused {
 			m.snap = msg.snap
 		}

@@ -31,6 +31,9 @@ type Options struct {
 
 	Scales   Scales       // the learned chart tops to start from (the model raises them)
 	OnScales func(Scales) // the live model calls it from Update whenever a top went up; must not block
+
+	OnStatus func(Level) string // the live model calls it after every poll with the level of that poll; the result is the footer note ("" = none); must not block
+	LEDNote  string             // drawn in the footer; the model sets it from OnStatus
 }
 
 // DetectOptions derives the display mode from the environment: TERM=linux selects
@@ -407,12 +410,31 @@ func (r *renderer) footer() string {
 		keys = "q quit   p pause   +/- refresh   h range"
 	}
 	left := r.paint(rLabel, keys)
-	url := ascii(r.s.URL)
-	if url != "" && width(left)+4+width(url) <= r.o.Width {
-		return left + strings.Repeat(" ", r.o.Width-width(left)-width(url)) + r.paint(rDim, url)
+	// right of the keys: the lighting note, then the URL. The URL gives way first.
+	var note string
+	if n := strings.TrimSpace(ascii(r.o.LEDNote)); n != "" {
+		if width(n) > maxNote {
+			n = fit(n, maxNote)
+		}
+		note = r.paint(rWarn, n+r.warnMark(rWarn))
+	}
+	url := r.paint(rDim, ascii(r.s.URL))
+	rights := []string{url}
+	if note != "" {
+		rights = []string{note, note}
+		if width(url) > 0 {
+			rights[0] = note + "   " + url
+		}
+	}
+	for _, right := range rights {
+		if width(right) > 0 && width(left)+4+width(right) <= r.o.Width {
+			return left + strings.Repeat(" ", r.o.Width-width(left)-width(right)) + right
+		}
 	}
 	return left
 }
+
+const maxNote = 32 // cells of the footer note
 
 // panel is a titled box's content; lines are fitted to the inner width.
 type panel struct {

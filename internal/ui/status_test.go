@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"llamadash/internal/collect"
 	"llamadash/internal/container"
@@ -186,6 +189,114 @@ func TestLevelString(t *testing.T) {
 	for l, want := range map[Level]string{LevelOK: "ok", LevelWarn: "warn", LevelBad: "bad", Level(9): "bad", Level(-1): "ok"} {
 		if got := l.String(); got != want {
 			t.Errorf("Level(%d) = %q, want %q", int(l), got, want)
+		}
+	}
+}
+
+func statusModel(t *testing.T, o Options) *Model {
+	m := NewModel(collect.New(collect.Config{URL: "http://127.0.0.1:1", GPU: collect.GPUOff}), time.Second, o, nil).(*Model)
+	m.now = func() time.Time { return t0 }
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	return m
+}
+
+func TestModelReportsStatus(t *testing.T) {
+	var got []Level
+	m := statusModel(t, Options{OnStatus: func(l Level) string {
+		got = append(got, l)
+		return "led: unavailable"
+	}})
+	if v := m.View().Content; strings.Contains(v, "led:") {
+		t.Fatalf("a note before any poll:\n%s", stripANSI(v))
+	}
+	m.Update(pollMsg{snap: unreachableSnapshot()})
+	if len(got) != 1 || got[0] != LevelBad {
+		t.Fatalf("OnStatus got %v, want one bad", got)
+	}
+	if v := lastLine(m.View().Content); !strings.Contains(v, "led: unavailable") {
+		t.Errorf("footer = %q", v)
+	}
+	m.Update(pollMsg{snap: idleSnapshot()})
+	if len(got) != 2 || got[1] != LevelOK {
+		t.Errorf("OnStatus got %v, want bad then ok", got)
+	}
+}
+
+// Pause freezes the picture, not the lights: they follow live data, and the
+// stale tags are judged by the live clock.
+func TestModelReportsStatusWhilePaused(t *testing.T) {
+	var got []Level
+	note := "led: unavailable"
+	m := statusModel(t, Options{OnStatus: func(l Level) string {
+		got = append(got, l)
+		return note
+	}})
+	m.Update(pollMsg{snap: idleSnapshot()})
+	m.Update(key("p"))
+	m.now = func() time.Time { return t0.Add(time.Hour) } // the frozen clock stays at t0
+	note = ""
+	m.Update(pollMsg{snap: unreachableSnapshot()})
+	s := idleSnapshot()
+	s.At = t0.Add(time.Hour) // fresh at the live clock, an hour old at the frozen one
+	s.SlotsAt = s.At
+	m.Update(pollMsg{snap: s})
+	if want := []Level{LevelOK, LevelBad, LevelOK}; !slices.Equal(got, want) {
+		t.Errorf("OnStatus got %v, want %v", got, want)
+	}
+	if v := lastLine(m.View().Content); strings.Contains(v, "led:") {
+		t.Errorf("the note did not clear while paused: %q", v)
+	}
+}
+
+func TestModelWithoutOnStatus(t *testing.T) {
+	m := statusModel(t, Options{})
+	m.Update(pollMsg{snap: unreachableSnapshot()})
+	if v := m.View().Content; strings.Contains(v, "led:") {
+		t.Errorf("a note without OnStatus:\n%s", stripANSI(v))
+	}
+}
+
+func TestFooterNote(t *testing.T) {
+	s := idleSnapshot()
+	o := opts(120, 40, s)
+	o.LEDNote = "led: unavailable"
+	foot := func(o Options) string { ls := lines(Render(s, o)); return ls[len(ls)-1] }
+	if f := foot(o); !strings.Contains(f, newRenderer(s, o).paint(rWarn, "led: unavailable")) || !strings.Contains(f, "localhost:8080") {
+		t.Errorf("footer = %q", f)
+	}
+	o.NoColor = true
+	if f := foot(o); !strings.Contains(f, "led: unavailable!   ") || !strings.HasSuffix(f, "http://localhost:8080") {
+		t.Errorf("no colour: footer = %q", f)
+	}
+	// the URL gives way first, then the note; the keys always stay
+	o.Width = 70
+	if f := foot(o); !strings.Contains(f, "led: unavailable!") || strings.Contains(f, "localhost") || !strings.HasPrefix(f, "q quit") {
+		t.Errorf("width 70: footer = %q", f)
+	}
+	o.Width = 40
+	if f := foot(o); strings.Contains(f, "led") || !strings.HasPrefix(f, "q quit   p pause") || width(f) != 40 {
+		t.Errorf("width 40: footer = %q (%d cells)", f, width(f))
+	}
+	// an outside string: control characters go, and it is cut at 32 cells
+	o.Width, o.LEDNote = 120, "led: \x1b[31m"+strings.Repeat("x", 80)
+	if f := foot(o); strings.Contains(f, "\x1b") || strings.Contains(f, strings.Repeat("x", 28)) || !strings.Contains(f, "led: ?[31m"+strings.Repeat("x", 22)+"!") {
+		t.Errorf("long note: footer = %q", f)
+	}
+	// the note is not part of the status
+	if got := Status(healthy(), Options{LEDNote: "led: unavailable", Now: healthy().At}); got != LevelOK {
+		t.Errorf("Status with a note = %v", got)
+	}
+}
+
+func TestFooterNoteFits(t *testing.T) {
+	s := busy(t, 60)
+	for _, mode := range []Options{{}, {Color16: true}, {NoColor: true}, {ASCII: true}} {
+		for w := 1; w <= 200; w += 3 {
+			for _, h := range []int{1, 2, 10, 40} {
+				o := mode
+				o.Width, o.Height, o.Interval, o.Now, o.LEDNote, o.History = w, h, time.Second, s.At, "led: unavailable", w%2 == 0
+				checkFits(t, "note", Render(s, o), o)
+			}
 		}
 	}
 }
