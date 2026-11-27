@@ -187,12 +187,7 @@ func (r *renderer) recentCells(f stats.Finished) [nRecentCols]string {
 // hostPanel shows the host's CPU, memory, disk, CPU temperature and fans (nil
 // Host: no panel). The fan and temperature readings share its stale tag.
 func (r *renderer) hostPanel(iw int) panel {
-	h := *r.s.Host
-	at := r.s.HostAt
-	if (len(r.s.Fans) > 0 || r.s.HasCPUTemp) && r.s.HwmonAt.Before(at) {
-		at = r.s.HwmonAt
-	}
-	return r.staled(panel{title: "Host", lines: r.hostLines(h, iw)}, r.staleTag(at, r.o.Interval))
+	return r.staled(panel{title: "Host", lines: r.hostLines(*r.s.Host, iw)}, r.hostStale())
 }
 
 // fanRank orders the fans row: stopped, then missing (n/a), then running.
@@ -229,15 +224,8 @@ func shownFans(fs []collect.Fan) ([]collect.Fan, []string) {
 // cpuTemp is the CPU temperature as the GPU panel prints its own: amber from
 // 85°C, red from 95°C (on the value shown), "!"/"!!" without colour.
 func (r *renderer) cpuTemp() string {
-	t := math.Round(r.s.CPUTempC)
-	tr := rValue
-	switch {
-	case t >= 95:
-		tr = rBad
-	case t >= 85:
-		tr = rWarn
-	}
-	return r.paint(rLabel, "temp ") + r.paint(tr, fmt.Sprintf("%.0f%sC", t, r.g.deg)+r.warnMark(tr))
+	tr := tempRole(r.s.CPUTempC, cpuTempWarn, cpuTempBad)
+	return r.paint(rLabel, "temp ") + r.paint(tr, fmt.Sprintf("%.0f%sC", math.Round(r.s.CPUTempC), r.g.deg)+r.warnMark(tr))
 }
 
 // fansRow is "fans   <label> <rpm>   ...   rpm" in iw cells: as many fans as fit,
@@ -276,12 +264,9 @@ func (r *renderer) fansRow(iw, labelW int) string {
 func (r *renderer) hostLines(h host.Info, iw int) []string {
 	const labelW = 7
 	paint := r.paint
-	used := h.MemTotalKB - min(h.MemAvailKB, h.MemTotalKB)
-	memFrac, memRole := 0.0, rMem
-	if h.MemTotalKB > 0 {
-		memFrac = float64(used) / float64(h.MemTotalKB)
-	}
-	if memFrac >= 0.9 {
+	used, memFrac, memHigh := hostMem(h)
+	memRole := rMem
+	if memHigh {
 		memRole = rWarn
 	}
 	// without colour the RAM warning is the "!" the GPU rows use
@@ -349,25 +334,15 @@ func (r *renderer) serverPanel() panel {
 			paint(rLabel, "cpu ") + cpu + sep + paint(rLabel, "mem ") + paint(rValue, kbGB(p.RSSKB)+" GB") + sep +
 			paint(rLabel, "threads ") + paint(rValue, fmt.Sprint(p.Threads))
 		lines = append(lines, l)
-		tag := r.staleTag(s.ProcAt, r.o.Interval)
+		tag := r.procStale()
 		tags, stale = append(tags, tag), append(stale, tag != "")
 	}
 	if c := s.Container; c != nil {
 		state := ascii(c.State)
-		stRole := rGood
-		if state != "running" {
-			stRole = rBad
-		}
-		health, hRole := ascii(c.Health), rValue
-		switch c.Health {
-		case "":
-			health, hRole = "no healthcheck", rDim
-		case "healthy":
-			hRole = rGood
-		case "unhealthy":
-			hRole = rBad
-		case "starting":
-			hRole = rWarn
+		stRole := ctStateRole(state)
+		health, hRole := ascii(c.Health), ctHealthRole(c.Health)
+		if c.Health == "" {
+			health = "no healthcheck"
 		}
 		// without colour, starting and unhealthy carry the ! / !! markers
 		l := label("container") + paint(rValue, ascii(c.Name)) + sep + paint(stRole, state) + sep +
@@ -377,7 +352,7 @@ func (r *renderer) serverPanel() panel {
 		}
 		l += sep + paint(rLabel, "restarts ") + paint(rValue, fmt.Sprint(c.Restarts))
 		lines = append(lines, l)
-		tag := r.staleTag(s.ContainerAt, max(r.o.Interval, containerEvery))
+		tag := r.containerStale()
 		tags, stale = append(tags, tag), append(stale, tag != "")
 	}
 	p := panel{title: "llama-server", lines: lines}

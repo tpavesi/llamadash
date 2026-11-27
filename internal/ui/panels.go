@@ -322,11 +322,9 @@ func (r *renderer) gpuLines(g gpu.GPU, iw int) []string {
 		}
 		return l
 	}
-	memFrac, memRole, memText := 0.0, rMem, rValue
-	if g.MemTotalMiB > 0 {
-		memFrac = g.MemUsedMiB / g.MemTotalMiB
-	}
-	if memFrac >= 0.95 {
+	memRole, memText := rMem, rValue
+	memFrac, memHigh := vramFrac(g)
+	if memHigh {
 		memRole, memText = rWarn, rWarn
 	}
 	lines := []string{
@@ -335,16 +333,8 @@ func (r *renderer) gpuLines(g gpu.GPU, iw int) []string {
 	}
 	temp := na
 	if g.HasTemp {
-		// warn on the value shown, so 79.6 shows as 80 and is amber
-		t := math.Round(g.TempC)
-		tr := rValue
-		switch {
-		case t >= 90:
-			tr = rBad
-		case t >= 80:
-			tr = rWarn
-		}
-		temp = r.paint(tr, fmt.Sprintf("%.0f%sC", t, r.g.deg)+r.warnMark(tr))
+		tr := tempRole(g.TempC, gpuTempWarn, gpuTempBad)
+		temp = r.paint(tr, fmt.Sprintf("%.0f%sC", math.Round(g.TempC), r.g.deg)+r.warnMark(tr))
 	}
 	power := na
 	if g.HasPower {

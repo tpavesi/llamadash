@@ -287,17 +287,7 @@ func (r *renderer) header() string {
 		}
 		ctx = fmt.Sprintf("ctx %s %s %d %s", fmtCount(p.NCtx), g.times, p.TotalSlots, slots)
 	}
-	health, hr := "ok", rGood
-	switch {
-	case s.At.IsZero():
-		health, hr = "connecting", rWarn
-	case !s.Reachable:
-		health, hr = "unreachable", rBad
-	case s.Loading:
-		health, hr = "loading model", rWarn
-	case s.Health.Status != "" && s.Health.Status != "ok":
-		health, hr = ascii(s.Health.Status), rWarn
-	}
+	health, hr := healthOf(s)
 	W := r.o.Width
 	note := s.DBStatus == "" && s.DBReadOnly // another llamadash is recording: not a fault, the normal colour
 

@@ -88,14 +88,14 @@ func ctSummary(items []ctItem) string {
 // ctMark is the mark of a level: a coloured ■, or without colour (and in ASCII
 // mode) a character that tells the levels apart on its own.
 func (r *renderer) ctMark(l container.Level) string {
-	mark, ro := "-", rDim
+	mark, ro := "-", ctLevelRole(l)
 	switch l {
 	case container.LevelOK:
-		mark, ro = "+", rGood
+		mark = "+"
 	case container.LevelStarting:
-		mark, ro = "~", rWarn
+		mark = "~"
 	case container.LevelFailed:
-		mark, ro = "!", rBad
+		mark = "!"
 	}
 	if !r.o.NoColor && !r.o.ASCII {
 		mark = "■"
@@ -165,7 +165,7 @@ func (r *renderer) containersPanel(iw int) panel {
 		rows = rows[:ctRows]
 	}
 	p := panel{title: "Containers", tag: ctSummary(items), tagRole: rLabel, lines: rows}
-	return r.staled(p, r.staleTag(r.s.ContainersAt, max(r.o.Interval, containerEvery)))
+	return r.staled(p, r.containersStale())
 }
 
 // plainContainers is the --once line: the counts, then the failed and starting ones.

@@ -285,6 +285,8 @@ llamadash --once --url http://localhost:8080
 sudo llamadash --url http://localhost:8080
 ```
 
+The second line is `status ok`, `status warn` or `status bad`: the worst
+colour the full dashboard would show (see [Status lighting](#status-lighting)).
 `--once` exits with status 1 if the server cannot be reached. Run as root for
 CPU power and the container line. To see cost, add a price per kWh and its
 currency:

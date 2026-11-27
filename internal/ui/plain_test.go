@@ -239,3 +239,14 @@ func TestRenderPlainNewLines(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderPlainStatus(t *testing.T) {
+	s := idleSnapshot()
+	if out := RenderPlain(s); !strings.Contains(out, "\nstatus ok\n") {
+		t.Errorf("no status ok line:\n%s", out)
+	}
+	s.Reachable = false
+	if out := RenderPlain(s); !strings.Contains(out, "\nstatus bad\n") {
+		t.Errorf("no status bad line:\n%s", out)
+	}
+}

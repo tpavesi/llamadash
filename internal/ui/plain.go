@@ -168,6 +168,7 @@ func RenderPlain(s collect.Snapshot) string {
 		health = ascii(s.Health.Status)
 	}
 	line("model %s%s  health %s  %s", model, header, health, ascii(s.URL))
+	line("status %s", Status(s, Options{Now: s.At, Interval: time.Second}))
 	if !s.Reachable {
 		since := "unknown"
 		if !s.UnreachableSince.IsZero() {
