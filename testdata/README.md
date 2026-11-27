@@ -51,3 +51,13 @@ Small `/sys/class/hwmon` trees for `internal/hwmon`; values are invented but rea
 - `gpuonly/` - only an `amdgpu` chip with a fan: unavailable.
 - `garbage/` - empty, text, fractional, negative and huge fan values, a value without its
   newline, a label with control characters, and a `Tctl` of 200 C.
+
+## openrgb/ (`openrgb --list-detailed` output)
+
+- `list_detailed.txt` - one motherboard, as OpenRGB 1.0 printed it for a real board (the board's
+  model name is public product information; nothing else in it identifies a machine).
+- `list_two_devices.txt` - HAND-WRITTEN: a log line OpenRGB prints before the list, the board,
+  and a keyboard without an `Off` mode.
+- `list_garbage.txt` - HAND-WRITTEN: control characters, a 300-character name, bad indexes, an
+  unclosed quote and 40 devices (more than the parser keeps).
+- `list_empty.txt` - empty.

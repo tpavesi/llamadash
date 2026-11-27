@@ -1,0 +1,7 @@
+0: ASRock TRX40 Creator
+  Type:           Motherboard
+  Description:    ASRock Polychrome USB Device
+  Location:       HID: /dev/hidraw1
+  Modes: Off Static Breathing Strobe 'Spectrum Cycle' Random Music Wave Spring Stack Cram Scan Neon Water [Rainbow] Direct
+  Zones: 'RGB LED 1 Header' 'RGB LED 2 Header' 'Addressable Header 1' 'Addressable Header 2'
+  LEDs: 'RGB LED 1 Header, LED 1' 'RGB LED 2 Header, LED 1'
