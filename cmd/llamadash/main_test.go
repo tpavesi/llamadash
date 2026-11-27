@@ -26,6 +26,7 @@ import (
 // (empty) test environment and never touches /var/lib.
 func TestMain(m *testing.M) {
 	geteuid = func() int { return 1000 }
+	ledLockDir = filepath.Join(os.TempDir(), "llamadash-test-no-such-dir") // never the real /run/lock
 	// nor do they read the machine's own /etc/llamadash.conf
 	readFile = func(p string) ([]byte, error) {
 		if p == systemConfig {

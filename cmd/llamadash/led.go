@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,7 +68,7 @@ func ledState(l ui.Level) led.State {
 // startLED returns the lighting controller, or nil when the feature is off, the
 // run is one-shot, or local sources are off (the lights belong to this machine,
 // like its sensors). openrgb keeps its files next to the default database,
-// whatever --db says, and the lock there lets one dashboard drive the lights.
+// whatever --db says.
 func startLED(o options, c *collect.Collector, env func(string) string, oneShot bool) *led.Controller {
 	if !o.led || oneShot || c == nil || !c.LocalSources() {
 		return nil
@@ -81,17 +82,46 @@ func startLED(o options, c *collect.Collector, env func(string) string, oneShot 
 		Run:       led.Command(o.ledCmd),
 		Device:    o.ledDevice,
 		ConfigDir: dir,
-		Lock: func() (io.Closer, error) {
+		Lock:      ledLock(dir),
+	})
+}
+
+// ledLockDir is where the lock of the lights lives: one place for every user of
+// the machine, so a dashboard started by someone else is not a second owner.
+// Tests replace it.
+var ledLockDir = "/run/lock"
+
+// lockFile is replaced in tests.
+var lockFile = func(p string) (io.Closer, error) {
+	l, err := store.Lock(p)
+	if err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+// ledLock returns the function that takes the lock of the lights. It fails
+// when another copy holds it, which includes a lock file of another user that
+// this one may not open. On a system without ledLockDir the lock is next to
+// openrgb's files in dir, and then only covers copies run by the same user.
+func ledLock(dir string) func() (io.Closer, error) {
+	return func() (io.Closer, error) {
+		p := filepath.Join(ledLockDir, "llamadash-led")
+		if st, err := os.Stat(ledLockDir); err != nil || !st.IsDir() {
 			if err := os.MkdirAll(dir, 0o700); err != nil {
 				return nopCloser{}, nil // not another copy: let the run fail and say so
 			}
-			l, err := store.Lock(filepath.Join(dir, "led"))
-			if err != nil && !errors.Is(err, store.ErrLocked) {
-				return nopCloser{}, nil
-			}
-			return l, err
-		},
-	})
+			p = filepath.Join(dir, "led")
+		}
+		l, err := lockFile(p)
+		switch {
+		case err == nil:
+			return l, nil
+		case errors.Is(err, store.ErrLocked), errors.Is(err, fs.ErrPermission):
+			return nil, err
+		}
+		return nopCloser{}, nil
+	}
 }
 
 type nopCloser struct{}

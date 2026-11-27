@@ -184,10 +184,13 @@ are allowed (`Collector.LocalSources`).
 - **Failure is quiet.** A failed run sets the note `led: unavailable`, the
   device list is read again before the next attempt, and the next attempt is a
   minute later. Nothing else changes.
-- **One owner.** A lock file next to OpenRGB's settings directory (itself next
-  to the default database, whatever `--db` says) decides which dashboard
-  drives the lighting; the others retry the lock every 30 seconds and never
-  run `openrgb`.
+- **One owner.** One lock file for the whole machine
+  (`/run/lock/llamadash-led.lock`; next to OpenRGB's settings directory where
+  `/run/lock` does not exist) decides which dashboard drives the lighting,
+  whoever runs it; a lock file of another user that cannot be opened counts as
+  held. The others retry the lock every 30 seconds and never run `openrgb`.
+  OpenRGB's settings directory is next to the default database, whatever
+  `--db` says.
 - **Exit.** `Close` ends a run in flight, switches the lighting off if this
   copy ever started a colour run, waits a bounded time and stops the worker.
 - **Inputs.** `openrgb`'s output is capped and parsed tolerantly; device names

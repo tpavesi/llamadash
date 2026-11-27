@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +14,7 @@ import (
 	"llamadash/internal/collect"
 	"llamadash/internal/fakeserver"
 	"llamadash/internal/led"
+	"llamadash/internal/store"
 	"llamadash/internal/ui"
 )
 
@@ -152,5 +157,55 @@ func TestOnceWithLEDWritesNothing(t *testing.T) {
 	}
 	if es, _ := os.ReadDir(state); len(es) != 0 {
 		t.Errorf("one-shot runs left %d entries in the state directory", len(es))
+	}
+}
+
+// The lock is one file for the whole machine, so a dashboard run by another
+// user is not a second owner of the lights.
+func TestLEDLockIsMachineWide(t *testing.T) {
+	oldDir, oldLock := ledLockDir, lockFile
+	defer func() { ledLockDir, lockFile = oldDir, oldLock }()
+	var got []string
+	var answer error
+	lockFile = func(p string) (io.Closer, error) {
+		got = append(got, p)
+		if answer != nil {
+			return nil, answer
+		}
+		return nopCloser{}, nil
+	}
+	shared, state := t.TempDir(), filepath.Join(t.TempDir(), "openrgb")
+	ledLockDir = shared
+	if l, err := ledLock(state)(); err != nil || l == nil {
+		t.Fatalf("free lock: %v %v", l, err)
+	}
+	if want := filepath.Join(shared, "llamadash-led"); len(got) != 1 || got[0] != want {
+		t.Errorf("lock path = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(state); err == nil {
+		t.Error("taking the shared lock created the openrgb directory")
+	}
+	// held by another copy, or by another user's copy whose file we may not open
+	for _, e := range []error{store.ErrLocked, fmt.Errorf("store: lock: %w", fs.ErrPermission)} {
+		answer = e
+		if l, err := ledLock(state)(); err == nil {
+			t.Errorf("%v: got the lock (%v)", e, l)
+		}
+	}
+	// any other failure is not another copy: run, and let the run say what is wrong
+	answer = errors.New("read-only file system")
+	if l, err := ledLock(state)(); err != nil || l == nil {
+		t.Errorf("other failure: %v %v", l, err)
+	}
+	// no shared lock directory on this system: next to openrgb's own files
+	answer, got, ledLockDir = nil, nil, filepath.Join(shared, "missing")
+	if _, err := ledLock(state)(); err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(state, "led"); len(got) != 1 || got[0] != want {
+		t.Errorf("fallback lock path = %q, want %q", got, want)
+	}
+	if st, err := os.Stat(state); err != nil || !st.IsDir() {
+		t.Error("the fallback did not create the directory the lock file lives in")
 	}
 }

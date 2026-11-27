@@ -136,6 +136,21 @@ func (h *harness) wait() {
 	}
 }
 
+// quiet fails when a run is queued for the worker. Counting runs after Close
+// would not show it: Close drops what is queued. With never, nothing may have
+// been handed over at all.
+func (h *harness) quiet(never bool) {
+	h.t.Helper()
+	h.c.mu.Lock()
+	defer h.c.mu.Unlock()
+	if h.c.havePend || len(h.c.wake) != 0 {
+		h.t.Errorf("a run is queued (state %v)", h.c.pending)
+	}
+	if never && h.c.haveSent {
+		h.t.Errorf("state %v was handed to the worker", h.c.sent)
+	}
+}
+
 func (h *harness) offer(st State, n int) {
 	for range n {
 		h.c.Offer(st)
@@ -189,6 +204,7 @@ func TestFlappingNeverRuns(t *testing.T) {
 		h.c.Offer([]State{Green, Amber}[i%2])
 	}
 	h.offer(Red, 2) // two in a row is still not three
+	h.quiet(true)
 	h.c.Close()
 	if calls := h.f.all(); len(calls) != 0 {
 		t.Errorf("runs = %q, want none", calls)
@@ -212,6 +228,7 @@ func TestSameStateNotRepeated(t *testing.T) {
 	h := start(t, newFake(t), nil)
 	h.green()
 	h.offer(Green, 10)
+	h.quiet(false)
 	h.c.Close()
 	h.wantColours("00FF00", "off")
 }
@@ -359,12 +376,12 @@ func TestCloseBoundedWhenHung(t *testing.T) {
 	if d := time.Since(began); d > time.Second {
 		t.Errorf("Close took %v", d)
 	}
-	h.wantColours("00FF00", "off")
-	select {
+	select { // Close may give up before the worker has started the switch-off
 	case <-h.c.done:
 	case <-time.After(2 * time.Second):
 		t.Error("the worker is still running")
 	}
+	h.wantColours("00FF00", "off")
 }
 
 type closer struct{ closed chan struct{} }
@@ -377,6 +394,7 @@ func TestNoLockNeverRuns(t *testing.T) {
 	h.offer(Red, 3)
 	h.clk.add(time.Hour)
 	h.offer(Red, 3)
+	h.quiet(true)
 	if h.c.Note() != "" {
 		t.Errorf("note = %q", h.c.Note())
 	}

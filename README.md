@@ -166,7 +166,7 @@ the [OpenRGB](https://openrgb.org) program, version 1.0 or newer, which
 llamadash runs once for each change of colour.
 
 What counts is what the screen marks amber or red: the server's health in the
-header, a database that is off or read-only, a panel whose data is stale, the
+header, a database that is off, a panel whose data is stale, the
 hint shown instead of the slots, GPU temperature and memory, host memory and
 CPU temperature, a stopped fan, the llama-server container, any container in
 the Containers panel, and the total power draw against the power supply. So
@@ -191,9 +191,9 @@ How it behaves:
   outright (`kill -9`, a crash, a power cut to the terminal only), nobody
   switches it off: the last colour stays until the next start or until you set
   it yourself, for example `openrgb -m Off`.
-- **One dashboard drives it.** With several copies running on the machine, the
-  first one owns the lighting; another takes over within 30 seconds of it
-  quitting. `--once` and `--frame` never touch the lighting.
+- **One dashboard drives it.** With several copies running on the machine,
+  whoever started them, the first one owns the lighting; another takes over
+  within 30 seconds of it quitting. `--once` and `--frame` never touch the lighting.
 - **This machine only.** Like the other local readings, the lighting is driven
   when `--url` is a loopback address or `--gpu` is given, and never with
   `--no-gpu`.
