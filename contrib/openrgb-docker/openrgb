@@ -1,0 +1,28 @@
+#!/bin/sh
+# openrgb for llamadash's status lighting, run from the local image
+# llamadash-openrgb (see the Dockerfile beside this file):
+#
+#   docker build -t llamadash-openrgb contrib/openrgb-docker
+#   install -m 755 contrib/openrgb-docker/openrgb /usr/local/bin/openrgb
+#
+# The container gets the USB lighting controllers and the directory llamadash
+# keeps OpenRGB's settings in (the value after --config), nothing else, and no
+# network. It must be run by a user who may run docker: root, for the dashboard
+# started at boot.
+dir=
+prev=
+for a in "$@"; do
+	[ "$prev" = --config ] && dir=$a
+	prev=$a
+done
+set -- llamadash-openrgb "$@"
+case $dir in
+/*)
+	mkdir -p "$dir" || exit 1
+	set -- -v "$dir:$dir" "$@"
+	;;
+esac
+for d in /dev/hidraw*; do
+	[ -c "$d" ] && set -- --device "$d" "$@"
+done
+exec docker run --rm --network none "$@"
