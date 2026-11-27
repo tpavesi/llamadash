@@ -94,7 +94,8 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT INT TERM
 cp "$SRC" "$TMP/llamadash"
 chmod 755 "$TMP/llamadash"
-VERSION=$("$TMP/llamadash" --version 2>/dev/null) || die "$SRC does not run on this machine"
+# --config /dev/null: a bad line in the existing settings file must not stop the installer
+VERSION=$("$TMP/llamadash" --config /dev/null --version 2>/dev/null) || die "$SRC does not run on this machine"
 
 say "llamadash installer ($VERSION, linux/$ARCH)"
 say "Press Enter to keep the value in [brackets]."
@@ -218,6 +219,22 @@ if [ -n "$FANS" ]; then
 	fi
 fi
 
+# The status lighting settings (README, "Status lighting") are not asked about;
+# lines already in the settings file are kept, each only if the program accepts it.
+LED_NOTE="# Status lighting through OpenRGB (see the README, \"Status lighting\")."
+LED=
+for _k in LLAMADASH_LED LLAMADASH_LED_CMD LLAMADASH_LED_DEVICE; do
+	_v=$(conf_get "$_k")
+	[ -n "$_v" ] || continue
+	say "$_k=$_v" >"$TMP/led.conf"
+	if "$TMP/llamadash" --config "$TMP/led.conf" --version >/dev/null 2>&1; then
+		LED="$LED$_k=$_v
+"
+	else
+		say "  (the lighting setting $_k=$_v is not valid and is dropped)"
+	fi
+done
+
 SERVICE=n
 START=n
 if [ -n "$UNIT_SRC" ] && command -v systemctl >/dev/null 2>&1; then
@@ -335,6 +352,7 @@ say "              LLAMADASH_URL=$URL"
 [ -z "$DB" ] || say "              LLAMADASH_DB=$DB"
 [ -z "$AXIS" ] || printf '%s' "$AXIS" | sed 's/^/              /; s/$/  (learned chart scale, kept)/'
 [ -z "$FANS" ] || say "              LLAMADASH_KNOWN_FANS=$FANS  (fans seen spinning, kept)"
+[ -z "$LED" ] || printf '%s' "$LED" | sed 's/^/              /; s/$/  (status lighting, kept)/'
 if [ "$SERVICE" = y ]; then
 	say "  install   $UNIT_DIR/llamadash.service, enabled at boot"
 	[ "$START" = n ] || say "  start     the dashboard on tty1 now (the login prompt there stops)"
@@ -395,6 +413,11 @@ mode=644
 		say
 		say "$FANS_NOTE"
 		say "LLAMADASH_KNOWN_FANS=$FANS"
+	fi
+	if [ -n "$LED" ]; then
+		say
+		say "$LED_NOTE"
+		printf '%s' "$LED"
 	fi
 } >"$TMP/llamadash.conf"
 install -m "$mode" "$TMP/llamadash.conf" "$CONF"

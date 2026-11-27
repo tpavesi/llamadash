@@ -23,6 +23,10 @@ var configKeys = map[string]bool{
 	"LLAMADASH_DB":        true,
 	"LLAMA_API_KEY":       true,
 	"LLAMADASH_PSU_WATTS": true,
+	// the status lighting (see led.go)
+	"LLAMADASH_LED":        true,
+	"LLAMADASH_LED_CMD":    true,
+	"LLAMADASH_LED_DEVICE": true,
 	// the learned chart tops: llamadash writes these itself (see scalesave.go)
 	"LLAMADASH_AXIS_POWER_W":    true,
 	"LLAMADASH_AXIS_GEN_TPS":    true,

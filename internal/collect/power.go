@@ -28,6 +28,10 @@ type cpuResult struct {
 	err           error
 }
 
+// LocalSources reports whether this machine's own hardware may be used: the
+// server is local, or --gpu was given, and --no-gpu was not.
+func (c *Collector) LocalSources() bool { return c.sourcesAllowed() }
+
 // sourcesAllowed reports whether local hardware (GPU, CPU power) may be read.
 func (c *Collector) sourcesAllowed() bool {
 	return c.cfg.GPU != GPUOff && (c.cfg.GPU != GPUAuto || c.gpuHost)

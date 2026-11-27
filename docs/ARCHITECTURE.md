@@ -65,6 +65,7 @@ All code is under `internal/`, with one command in `cmd/llamadash`.
 | `internal/procstat` | CPU, memory and threads of the `llama-server` process from `/proc` |
 | `internal/hwmon` | Motherboard fan speeds and CPU temperature from `/sys/class/hwmon` |
 | `internal/container` | Docker containers via the `docker` command |
+| `internal/led` | The status lighting: parses `openrgb --list-detailed`, builds its arguments, and a controller that runs it when the colour to show changes |
 | `internal/collect` | The poll loop body: calls everything above, owns all state between polls, produces `Snapshot` |
 | `internal/store` | SQLite history: samples, finished requests, per-day totals, tariff |
 | `internal/cost` | Money formatting and price parsing |
@@ -73,8 +74,9 @@ All code is under `internal/`, with one command in `cmd/llamadash`.
 
 Dependencies point one way: sensor packages depend on nothing in the project;
 `stats` depends on `llama`; `store` on `stats`; `collect` on all of those; `ui`
-on `collect`; `cmd/llamadash` on `collect`, `store` and `ui`. Nothing imports
-`ui` or `cmd`.
+on `collect`; `cmd/llamadash` on `collect`, `store`, `ui` and `led`. Nothing
+imports `ui` or `cmd`. `led` depends on nothing in the project and knows
+nothing about the dashboard: `cmd/llamadash` connects `ui` to it.
 
 ## The collector
 
@@ -157,8 +159,40 @@ sizes, fetches history off the UI goroutine, and calls `Render`.
   saved.
 - **Pause** freezes the displayed snapshot and its clock. Collection and
   recording continue.
+- **Status** (`status.go`). `ui.Status(snapshot, options) Level` is the worst
+  colour on the screen as one value: ok, warn or bad. It uses the same
+  thresholds and helpers as the panels (a test compares it with the colours
+  actually painted), and leaves out a missing fan, the slots' context bars and
+  "history unavailable". The model computes it after every poll, from the live
+  snapshot and clock even while paused, and hands it to `Options.OnStatus`;
+  the string that returns is the footer note. `--once` prints it as
+  `status ok|warn|bad`.
 - **Plain output** (`plain.go`). `--once` prints the same facts as stable
   `key value` lines for scripts; `--frame WxH` prints one rendered screen.
+
+## The status lighting
+
+`cmd/llamadash` sets `Options.OnStatus` to a function that offers the level's
+colour to a `led.Controller` and returns its note. The controller is created
+only for the live dashboard, with `LLAMADASH_LED=on`, and when local sources
+are allowed (`Collector.LocalSources`).
+
+- **Offer never blocks.** It only counts: a colour is shown once the last
+  three polls agree on it, or all lie on one side of the colour shown. One
+  worker goroutine runs `openrgb`, one run at a time, always for the newest
+  colour, each run bounded by a timeout.
+- **Failure is quiet.** A failed run sets the note `led: unavailable`, the
+  device list is read again before the next attempt, and the next attempt is a
+  minute later. Nothing else changes.
+- **One owner.** A lock file next to OpenRGB's settings directory (itself next
+  to the default database, whatever `--db` says) decides which dashboard
+  drives the lighting; the others retry the lock every 30 seconds and never
+  run `openrgb`.
+- **Exit.** `Close` ends a run in flight, switches the lighting off if this
+  copy ever started a colour run, waits a bounded time and stops the worker.
+- **Inputs.** `openrgb`'s output is capped and parsed tolerantly; device names
+  are cleaned and never passed back as arguments (only device numbers are).
+  OpenRGB writes a log file per run; all but the newest five are removed.
 
 ## Settings
 
@@ -169,7 +203,8 @@ file (`$XDG_CONFIG_HOME/llamadash/llamadash.conf`), the system file
 There are two kinds of keys:
 
 - **Set by a person** (`LLAMADASH_URL`, `LLAMADASH_KWH_PRICE`,
-  `LLAMADASH_PSU_WATTS`, …). An unknown key or a bad value is an error and the
+  `LLAMADASH_PSU_WATTS`, `LLAMADASH_LED`, `LLAMADASH_LED_CMD`,
+  `LLAMADASH_LED_DEVICE`, …). An unknown key or a bad value is an error and the
   program exits with status 2. The systemd unit does not restart on status 2,
   so a typo does not cause a restart loop.
 - **Maintained by the program** (`LLAMADASH_AXIS_*`, `LLAMADASH_KNOWN_FANS`).

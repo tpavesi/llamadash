@@ -78,6 +78,7 @@ easier.
 | What is stored and how it is queried | `internal/store` (schema changes go in `schema.go` as a new version) |
 | How anything looks | `internal/ui` (`panels*.go`, `chart.go`, `layout.go`, `plain.go` for `--once`) |
 | Flags and settings keys | `cmd/llamadash/main.go`, `config.go` |
+| The status lighting | `internal/led`; what counts towards it: `internal/ui/status.go` |
 | The installer | `install.sh` (POSIX `sh`, tabs, LF line endings) |
 
 Adding a new source usually means: a small package that only parses, with its

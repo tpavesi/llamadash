@@ -44,6 +44,7 @@ place.
 | llama-server process | CPU, memory and threads of the server process | dashboard runs on the server |
 | Containers | a green, amber or red light for every Docker container; amber means still starting | `docker`, as root or a `docker` group member |
 | Power and energy | live watts, energy used, joules per token | GPU: `nvidia-smi`; CPU: root |
+| Status lighting | the motherboard's RGB lighting goes green, amber or red with the worst colour on the screen | [OpenRGB](https://openrgb.org) 1.0 or newer and a board it supports; off until `LLAMADASH_LED=on` |
 | Cost | cost so far, per day, per million tokens; today, this month, all time | a price per kWh in the settings |
 | History | charts over the last 5 minutes, hour, day or week; totals survive restarts | nothing extra (built-in SQLite file) |
 | Always-on display | starts at boot on the server's monitor; any screen size, portrait included | systemd, for the boot service |
@@ -53,7 +54,7 @@ place.
 
 - [At a glance](#at-a-glance)
 - [Screenshots](#screenshots)
-- [What it shows](#what-it-shows)
+- [What it shows](#what-it-shows), [status lighting](#status-lighting)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Deployment manual](#deployment-manual)
@@ -154,6 +155,68 @@ Things worth knowing:
   machine uses.
 - Everything comes from polling, so per-request times are accurate to about
   one refresh interval, and a request shorter than one interval can be missed.
+
+### Status lighting
+
+With `LLAMADASH_LED=on` (or `--led`) the motherboard's RGB lighting shows the
+worst colour on the dashboard, so the state of the machine can be read from
+across the room: green when nothing on the screen is amber or red, amber when
+something is amber, red when something is red. It is off by default and needs
+the [OpenRGB](https://openrgb.org) program, version 1.0 or newer, which
+llamadash runs once for each change of colour.
+
+What counts is what the screen marks amber or red: the server's health in the
+header, a database that is off or read-only, a panel whose data is stale, the
+hint shown instead of the slots, GPU temperature and memory, host memory and
+CPU temperature, a stopped fan, the llama-server container, any container in
+the Containers panel, and the total power draw against the power supply. So
+"server unreachable" is red, "model loading" is amber, a GPU at 80°C is amber
+and at 90°C red.
+
+Four things on the screen do not count:
+
+- a fan shown as `n/a` (its sensor is gone; a fan that has stopped does count),
+- the context bar of a slot, however full,
+- "history unavailable" on a chart,
+- the `led: unavailable` note itself.
+
+How it behaves:
+
+- **No flicker.** The colour changes only after three polls in a row call for
+  it (three seconds at the default interval). A reading that hovers between
+  two worse colours moves the lighting to the milder of them rather than
+  leaving a calmer colour showing.
+- **Off on exit.** When the dashboard quits, the lighting is switched off, so
+  a lit board means a dashboard is watching. If the dashboard is killed
+  outright (`kill -9`, a crash, a power cut to the terminal only), nobody
+  switches it off: the last colour stays until the next start or until you set
+  it yourself, for example `openrgb -m Off`.
+- **One dashboard drives it.** With several copies running on the machine, the
+  first one owns the lighting; another takes over within 30 seconds of it
+  quitting. `--once` and `--frame` never touch the lighting.
+- **This machine only.** Like the other local readings, the lighting is driven
+  when `--url` is a loopback address or `--gpu` is given, and never with
+  `--no-gpu`.
+- **Pause** freezes the picture, not the lighting: it follows live data.
+- **If it cannot be driven** (OpenRGB missing, no matching device, a run that
+  fails or takes more than 20 seconds), the footer shows `led: unavailable`,
+  the lighting is left alone, and llamadash tries again every minute. Nothing
+  else on the dashboard is affected.
+
+By default every device OpenRGB lists with the type `Motherboard` is set.
+`LLAMADASH_LED_DEVICE` names a device instead: any device whose name contains
+that text (case does not matter), of whatever type. `openrgb --list-detailed`
+prints the names. The colours are plain green `00FF00`, amber `FF7E00` and red
+`FF0000` in the device's `Static` mode.
+
+OpenRGB needs access to the board's controller: run the dashboard as root (the
+boot service does), or install OpenRGB's udev rules for another user. If
+`openrgb` is not on the `PATH` of the user running the dashboard, give its full
+path in `LLAMADASH_LED_CMD`. llamadash gives OpenRGB a settings directory of
+its own, `openrgb` next to the default history database
+(`/var/lib/llamadash/openrgb` as root), never the one in your home directory,
+does not talk to a running OpenRGB server, and keeps only the five newest of
+the log files OpenRGB writes there.
 
 ## Requirements
 
@@ -324,9 +387,11 @@ service.
   instead. Neither default file has to exist.
 - Lines are `NAME=value`; a line starting with `#` is a comment. The names are
   the environment variables': `LLAMADASH_URL`, `LLAMADASH_KWH_PRICE`,
-  `LLAMADASH_CURRENCY`, `LLAMADASH_DB`, `LLAMA_API_KEY` and
-  `LLAMADASH_PSU_WATTS`, plus the `LLAMADASH_AXIS_*` lines llamadash writes
-  itself (see Charts).
+  `LLAMADASH_CURRENCY`, `LLAMADASH_DB`, `LLAMA_API_KEY`,
+  `LLAMADASH_PSU_WATTS`, `LLAMADASH_LED`, `LLAMADASH_LED_CMD` and
+  `LLAMADASH_LED_DEVICE`, plus the `LLAMADASH_AXIS_*` and
+  `LLAMADASH_KNOWN_FANS` lines llamadash writes itself (see Charts and the
+  flags reference).
 - A flag on the command line wins over the environment, which wins over the
   file.
 - A misspelt name, or a file named with `--config` that does not exist, stops
@@ -467,6 +532,10 @@ The database in `/var/lib/llamadash/` is not deleted by this. Delete it with
 | `db: read-only` in the header | Another llamadash is recording to the same database. This copy takes over within 30 seconds of the other one quitting. |
 | `h` does nothing | There is no history database (`--no-db`, or it failed to open), or the display is paused. |
 | A panel is dim with "stale, 12s ago" | Its source stopped answering; it recovers on its own when the source does. |
+| Footer says `led: unavailable` | The lighting is switched on but could not be set. Run the same command as the same user: `openrgb --noautoconnect --list-detailed`. If the command is not found, install OpenRGB 1.0 or newer (Debian 12 does not package it; openrgb.org has builds) and, if it is not on that user's `PATH` (root's, for the boot service), give the full path in `LLAMADASH_LED_CMD`. If it lists no device of type `Motherboard`, OpenRGB does not support the board's controller, or the lighting is on another device: name it with `LLAMADASH_LED_DEVICE`. llamadash tries again every minute; no restart is needed. |
+| `led: unavailable` only when not running as root | OpenRGB may not open the controller. Install OpenRGB's udev rules (its packages do; otherwise copy its `60-openrgb.rules` to `/etc/udev/rules.d/` and run `udevadm control --reload-rules && udevadm trigger`), or run the dashboard as root. |
+| Lighting is switched on, no note in the footer, nothing lights up | Another llamadash on the machine owns the lighting, or the board's only lighting zones are headers with no strip or fan plugged into them: the colour is set, but there is nothing to show it. |
+| The lighting stays on after the dashboard has gone | It was killed without a chance to switch it off (`kill -9`, a crash). Start it again, or run `openrgb -m Off`. |
 | Boxes or bars drawn as wrong characters | The console font lacks them; add `--ascii`. |
 | `not a terminal: use --once` | The output is piped or redirected; use `--once` or `--frame COLSxROWS`. |
 | Blank screen after boot | A settings error; see the end of step 6. |
@@ -494,6 +563,9 @@ frame and exits.
 | `--range` | `5m` | starting chart range: `5m` (live), `1h`, `24h`, `7d` |
 | `--gpu` | off | read the local GPU, CPU power, Host, llama-server process and container readings even for a non-loopback URL |
 | `--no-gpu` | off | never read the local GPU, CPU power, Host, llama-server process or container readings |
+| `--led` | off | show the dashboard's worst colour on the motherboard lighting (env `LLAMADASH_LED`, `on` or `off`; `--led=false` overrides `on`); see [Status lighting](#status-lighting) |
+| `--led-cmd` | `openrgb` | the OpenRGB program: a name on `PATH` or a full path, at most 4096 bytes (env `LLAMADASH_LED_CMD`) |
+| `--led-device` | none | set the OpenRGB devices whose name contains this text instead of every motherboard, at most 64 bytes (env `LLAMADASH_LED_DEVICE`) |
 | `--ascii` | off | ASCII-only output |
 | `--once` | off | print one plain-text snapshot and exit (not a stable format) |
 | `--frame COLSxROWS` | none | print one dashboard frame of that size and exit, e.g. `--frame 135x120` |
@@ -516,7 +588,7 @@ skipped with a warning.
 `--gpu` and `--no-gpu` cannot be combined, nor `--db` and `--no-db`, nor
 `--frame` and `--once`. `--once` output is for a quick look and is not a
 stable format; do not parse it. `--once` and `--frame` read the database but
-never write to it.
+never write to it, and never touch the lighting.
 
 Exit codes: 0 on success; 1 if the server was unreachable for `--once` or
 `--frame`, or the UI failed; 2 for bad arguments or settings (including a
@@ -670,7 +742,9 @@ and counters only: prompt and response text, chat templates and model file
 paths are never displayed, logged or stored, and server-provided strings are
 stripped of control characters before display. On the local machine it reads
 the llama-server process's name, CPU and memory, not its command line or
-environment. It makes no other network connections.
+environment. It makes no other network connections. With the status lighting
+on it runs the local `openrgb` program, passing it only a device number, a mode
+and a colour.
 
 ## Development
 
@@ -695,6 +769,7 @@ pure-Go SQLite, so the binary needs no C library.
 | `internal/stats` | per-slot state, rates and finished-request tracking |
 | `internal/collect` | the poll loop that gathers everything into one snapshot |
 | `internal/gpu`, `cpupower`, `host`, `procstat`, `container` | local sensors |
+| `internal/led` | the status lighting: runs `openrgb` when the colour changes |
 | `internal/store` | the SQLite history |
 | `internal/cost` | price parsing and money formatting |
 | `internal/ui` | layout, panels, charts and the plain-text snapshot |

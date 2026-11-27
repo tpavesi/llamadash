@@ -54,6 +54,9 @@ type options struct {
 	confFile    string         // the settings file learned tops are written to; "" = none
 	knownFans   []string       // fans seen spinning in earlier runs (LLAMADASH_KNOWN_FANS)
 	onNewFans   func([]string) // the live dashboard's saver; nil: not saved
+	led         bool           // show the status on the motherboard lighting
+	ledCmd      string         // the openrgb program
+	ledDevice   string         // "" = every motherboard openrgb finds
 }
 
 // scales are the chart tops to start from: the power chart goes to the larger of
@@ -99,6 +102,14 @@ func parseArgs(args []string, env func(string) string, stderr io.Writer) (option
 	fs.IntVar(&o.retainDays, "retain-days", 30, "days of samples to keep in the database, 1 to 3650 (finished requests are kept 90 days)")
 	rng := fs.String("range", "5m", "starting chart range: 5m (live), 1h, 24h or 7d from the database; the h key cycles it")
 	psu := fs.String("psu-watts", env("LLAMADASH_PSU_WATTS"), "maximum wattage of the power supply, e.g. 1000: the top of the power chart (env LLAMADASH_PSU_WATTS)")
+	ledOn, _ := ledDefault(env) // a bad value is reported by ledArgs
+	ledCmd := "openrgb"
+	if v := env("LLAMADASH_LED_CMD"); strings.TrimSpace(v) != "" {
+		ledCmd = v
+	}
+	fs.BoolVar(&o.led, "led", ledOn, "show the dashboard's worst colour on the motherboard lighting, through OpenRGB (env LLAMADASH_LED=on)")
+	fs.StringVar(&o.ledCmd, "led-cmd", ledCmd, "the openrgb program, a name on PATH or a path (env LLAMADASH_LED_CMD)")
+	fs.StringVar(&o.ledDevice, "led-device", env("LLAMADASH_LED_DEVICE"), "drive the OpenRGB device with this name instead of every motherboard (env LLAMADASH_LED_DEVICE)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return o, err, 0
@@ -109,6 +120,9 @@ func parseArgs(args []string, env func(string) string, stderr io.Writer) (option
 		return o, err, code
 	}
 	if code, err := scaleArgs(&o, *psu, env, stderr); code >= 0 {
+		return o, err, code
+	}
+	if code, err := ledArgs(&o, env, stderr); code >= 0 {
 		return o, err, code
 	}
 	o.confFile = confFile
@@ -323,6 +337,10 @@ func run(args []string, env func(string) string, stdout, stderr io.Writer) int {
 		if saver != nil {
 			display.OnScales = saver.Offer
 			defer saver.Close() // before finish: writes what is pending
+		}
+		if ctl := startLED(o, c, env, oneShot); ctl != nil {
+			display.OnStatus = func(l ui.Level) string { ctl.Offer(ledState(l)); return ctl.Note() }
+			defer ctl.Close() // before finish: switches the lights off
 		}
 		p := tea.NewProgram(ui.NewModel(c, o.interval, display, src), tea.WithOutput(stdout))
 		// Bubble Tea handles SIGINT and SIGTERM; a hangup (a dropped SSH session) must
